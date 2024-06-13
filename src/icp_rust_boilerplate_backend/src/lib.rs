@@ -217,6 +217,7 @@ enum Message {
     InvalidPayload(String),
 }
 
+// Function to create a doctor
 #[ic_cdk::update]
 fn create_doctor(payload: DoctorPayload) -> Result<Doctor, Message> {
     if payload.name.is_empty() || payload.speciality.is_empty() {
@@ -225,10 +226,12 @@ fn create_doctor(payload: DoctorPayload) -> Result<Doctor, Message> {
         ));
     }
 
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter.borrow_mut().set(current_value + 1)
-    }).expect("Cannot increment ID counter");
+    let id = ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("Cannot increment ID counter");
 
     let doctor = Doctor {
         id,
@@ -240,14 +243,21 @@ fn create_doctor(payload: DoctorPayload) -> Result<Doctor, Message> {
     Ok(doctor)
 }
 
+// Function to get all doctors
 #[ic_cdk::query]
-fn get_doctors() -> Vec<Doctor> {
+fn get_doctors() -> Result<Vec<Doctor>, Message> {
     DOCTORS_STORAGE.with(|storage| {
-        storage
+        let doctors: Vec<Doctor> = storage
             .borrow()
             .iter()
             .map(|(_, doctor)| doctor.clone())
-            .collect()
+            .collect();
+
+        if doctors.is_empty() {
+            Err(Message::NotFound("No doctors found".to_string()))
+        } else {
+            Ok(doctors)
+        }
     })
 }
 
@@ -301,14 +311,16 @@ fn delete_doctor(id: u64) -> Result<(), Message> {
 fn create_patient(payload: PatientPayload) -> Result<Patient, Message> {
     if payload.name.is_empty() || payload.gender.is_empty() {
         return Err(Message::InvalidPayload(
-            "Ensure 'name' and 'gender' are provided.".to_string(),
+            "Ensure 'name', 'age' and 'gender' are provided.".to_string(),
         ));
     }
 
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter.borrow_mut().set(current_value + 1)
-    }).expect("Cannot increment ID counter");
+    let id = ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("Cannot increment ID counter");
 
     let patient = Patient {
         id,
@@ -322,13 +334,19 @@ fn create_patient(payload: PatientPayload) -> Result<Patient, Message> {
 }
 
 #[ic_cdk::query]
-fn get_patients() -> Vec<Patient> {
+fn get_patients() -> Result<Vec<Patient>, Message> {
     PATIENTS_STORAGE.with(|storage| {
-        storage
+        let patients: Vec<Patient> = storage
             .borrow()
             .iter()
             .map(|(_, patient)| patient.clone())
-            .collect()
+            .collect();
+
+        if patients.is_empty() {
+            Err(Message::NotFound("No patients found".to_string()))
+        } else {
+            Ok(patients)
+        }
     })
 }
 
@@ -366,7 +384,6 @@ fn update_patient(id: u64, name: String, age: u32, gender: String) -> Result<Pat
     })
 }
 
-
 #[ic_cdk::update]
 fn delete_patient(id: u64) -> Result<(), Message> {
     PATIENTS_STORAGE.with(|storage| {
@@ -383,14 +400,40 @@ fn delete_patient(id: u64) -> Result<(), Message> {
 fn create_appointment(payload: AppointmentPayload) -> Result<Appointment, Message> {
     if payload.description.is_empty() {
         return Err(Message::InvalidPayload(
-            "Ensure 'description' is provided.".to_string(),
+            "Ensure all fields are provided.".to_string(),
         ));
     }
 
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter.borrow_mut().set(current_value + 1)
-    }).expect("Cannot increment ID counter");
+    // Validate the patient id
+    let patient = PATIENTS_STORAGE.with(|storage| {
+        storage
+            .borrow()
+            .iter()
+            .find(|(_, patient)| patient.id == payload.patient_id)
+            .map(|(_, patient)| patient.clone())
+    });
+    if patient.is_none() {
+        return Err(Message::NotFound("Patient not found".to_string()));
+    }
+
+    // Validate the doctor id
+    let doctor = DOCTORS_STORAGE.with(|storage| {
+        storage
+            .borrow()
+            .iter()
+            .find(|(_, doctor)| doctor.id == payload.doctor_id)
+            .map(|(_, doctor)| doctor.clone())
+    });
+    if doctor.is_none() {
+        return Err(Message::NotFound("Doctor not found".to_string()));
+    }
+
+    let id = ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("Cannot increment ID counter");
 
     let appointment = Appointment {
         id,
@@ -402,20 +445,24 @@ fn create_appointment(payload: AppointmentPayload) -> Result<Appointment, Messag
         created_at: current_time(),
         updated_at: None,
     };
-    APPOINTMENTS_STORAGE.with(|storage| {
-        storage.borrow_mut().insert(id, appointment.clone())
-    });
+    APPOINTMENTS_STORAGE.with(|storage| storage.borrow_mut().insert(id, appointment.clone()));
     Ok(appointment)
 }
 
 #[ic_cdk::query]
-fn get_appointments() -> Vec<Appointment> {
+fn get_appointments() -> Result<Vec<Appointment>, Message> {
     APPOINTMENTS_STORAGE.with(|storage| {
-        storage
+        let appointments: Vec<Appointment> = storage
             .borrow()
             .iter()
             .map(|(_, appointment)| appointment.clone())
-            .collect()
+            .collect();
+
+        if appointments.is_empty() {
+            Err(Message::NotFound("No appointments found".to_string()))
+        } else {
+            Ok(appointments)
+        }
     })
 }
 
@@ -463,7 +510,6 @@ fn update_appointment(
     })
 }
 
-
 #[ic_cdk::update]
 fn delete_appointment(id: u64) -> Result<(), Message> {
     APPOINTMENTS_STORAGE.with(|storage| {
@@ -484,10 +530,36 @@ fn create_patient_record(payload: PatientRecordPayload) -> Result<PatientRecord,
         ));
     }
 
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter.borrow_mut().set(current_value + 1)
-    }).expect("Cannot increment ID counter");
+    // Validate the patient id
+    let patient = PATIENTS_STORAGE.with(|storage| {
+        storage
+            .borrow()
+            .iter()
+            .find(|(_, patient)| patient.id == payload.patient_id)
+            .map(|(_, patient)| patient.clone())
+    });
+    if patient.is_none() {
+        return Err(Message::NotFound("Patient not found".to_string()));
+    }
+
+    // Validate the doctor id
+    let doctor = DOCTORS_STORAGE.with(|storage| {
+        storage
+            .borrow()
+            .iter()
+            .find(|(_, doctor)| doctor.id == payload.doctor_id)
+            .map(|(_, doctor)| doctor.clone())
+    });
+    if doctor.is_none() {
+        return Err(Message::NotFound("Doctor not found".to_string()));
+    }
+
+    let id = ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("Cannot increment ID counter");
 
     let patient_record = PatientRecord {
         id,
@@ -498,30 +570,34 @@ fn create_patient_record(payload: PatientRecordPayload) -> Result<PatientRecord,
         medications: payload.medications,
         created_at: current_time(),
     };
-    PATIENT_RECORDS_STORAGE.with(|storage| {
-        storage.borrow_mut().insert(id, patient_record.clone())
-    });
+    PATIENT_RECORDS_STORAGE.with(|storage| storage.borrow_mut().insert(id, patient_record.clone()));
     Ok(patient_record)
 }
 
 #[ic_cdk::query]
-fn get_patient_records() -> Vec<PatientRecord> {
+fn get_patient_records() -> Result<Vec<PatientRecord>, Message> {
     PATIENT_RECORDS_STORAGE.with(|storage| {
-        storage
+        let patient_records: Vec<PatientRecord> = storage
             .borrow()
             .iter()
             .map(|(_, patient_record)| patient_record.clone())
-            .collect()
+            .collect();
+
+        if patient_records.is_empty() {
+            Err(Message::NotFound("No patient records found".to_string()))
+        } else {
+            Ok(patient_records)
+        }
     })
 }
 
 #[ic_cdk::query]
-fn get_patient_record(id: u64) -> Result<PatientRecord, Message> {
+fn get_patient_record_by_id(id: u64) -> Result<PatientRecord, Message> {
     PATIENT_RECORDS_STORAGE.with(|storage| {
         storage
             .borrow()
             .iter()
-            .find(|(_, patient_record)| patient_record.id == id)    
+            .find(|(_, patient_record)| patient_record.id == id)
             .map(|(_, patient_record)| patient_record.clone())
             .ok_or(Message::NotFound("Patient record not found".to_string()))
     })
@@ -538,7 +614,9 @@ fn update_patient_record(
 ) -> Result<PatientRecord, Message> {
     PATIENT_RECORDS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        let id_entry = storage.iter().find(|(_, patient_record)| patient_record.id == id);
+        let id_entry = storage
+            .iter()
+            .find(|(_, patient_record)| patient_record.id == id);
         match id_entry {
             Some((key, _)) => {
                 let updated_patient_record = PatientRecord {
@@ -557,7 +635,6 @@ fn update_patient_record(
         }
     })
 }
-
 
 #[ic_cdk::update]
 fn delete_patient_record(id: u64) -> Result<(), Message> {
@@ -579,10 +656,24 @@ fn create_medication(payload: MedicationPayload) -> Result<Medication, Message> 
         ));
     }
 
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter.borrow_mut().set(current_value + 1)
-    }).expect("Cannot increment ID counter");
+    // Validate patient id
+    let patient = PATIENTS_STORAGE.with(|storage| {
+        storage
+            .borrow()
+            .iter()
+            .find(|(_, patient)| patient.id == payload.patient_id)
+            .map(|(_, patient)| patient.clone())
+    });
+    if patient.is_none() {
+        return Err(Message::NotFound("Patient not found".to_string()));
+    }
+
+    let id = ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("Cannot increment ID counter");
 
     let medication = Medication {
         id,
@@ -592,20 +683,24 @@ fn create_medication(payload: MedicationPayload) -> Result<Medication, Message> 
         patient_id: payload.patient_id,
         created_at: current_time(),
     };
-    MEDICATIONS_STORAGE.with(|storage| {
-        storage.borrow_mut().insert(id, medication.clone())
-    });
+    MEDICATIONS_STORAGE.with(|storage| storage.borrow_mut().insert(id, medication.clone()));
     Ok(medication)
 }
 
 #[ic_cdk::query]
-fn get_medications() -> Vec<Medication> {
+fn get_medications() -> Result<Vec<Medication>, Message> {
     MEDICATIONS_STORAGE.with(|storage| {
-        storage
+        let medications: Vec<Medication> = storage
             .borrow()
             .iter()
             .map(|(_, medication)| medication.clone())
-            .collect()
+            .collect();
+
+        if medications.is_empty() {
+            Err(Message::NotFound("No medications found".to_string()))
+        } else {
+            Ok(medications)
+        }
     })
 }
 
@@ -649,7 +744,6 @@ fn update_medication(
         }
     })
 }
-
 
 #[ic_cdk::update]
 fn delete_medication(id: u64) -> Result<(), Message> {

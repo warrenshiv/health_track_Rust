@@ -1,103 +1,108 @@
-type Assignment = record {
+type Appointment = record {
   id : nat64;
-  status : text;
-  surplus_post_id : nat64;
-  receiver_id : nat64;
+  patient_id : nat64;
+  updated_at : opt nat64;
+  duration : nat32;
+  date_time : nat64;
+  description : text;
   created_at : nat64;
-  driver_id : nat64;
+  doctor_id : nat64;
 };
-type AssignmentPayload = record {
-  surplus_post_id : nat64;
-  receiver_id : nat64;
-  driver_id : nat64;
+type AppointmentPayload = record {
+  patient_id : nat64;
+  duration : nat32;
+  date_time : nat64;
+  description : text;
+  doctor_id : nat64;
 };
-type BusinessType = variant { Grocery; Bakery; Other; Restaurant };
-type DonorPayload = record {
-  name : text;
-  business_type : BusinessType;
-  email : text;
-  address : text;
-  phone_number : text;
-};
-type DonorProfile = record {
-  id : nat64;
-  name : text;
-  business_type : BusinessType;
-  created_at : nat64;
-  email : text;
-  address : text;
-  phone_number : text;
-};
-type DriverPayload = record {
-  name : text;
-  email : text;
-  address : text;
-  phone_number : text;
-};
-type DriverProfile = record {
+type Doctor = record {
   id : nat64;
   name : text;
   created_at : nat64;
-  email : text;
-  address : text;
-  phone_number : text;
+  speciality : text;
 };
-type Error = variant {
-  NotFound : record { msg : text };
-  UnAuthorized : record { msg : text };
-};
-type FoodType = variant {
-  Meat;
-  Grains;
-  Beverages;
-  Dairy;
-  Bakery;
-  Vegetables;
-  Other;
-  Fruits;
-};
-type Result = variant { Ok : Assignment; Err : text };
-type Result_1 = variant { Ok : DonorProfile; Err : text };
-type Result_2 = variant { Ok : DriverProfile; Err : text };
-type Result_3 = variant { Ok : SurplusPost; Err : text };
-type Result_4 = variant { Ok : SurplusRecord; Err : text };
-type Result_5 = variant { Ok : vec DriverProfile; Err : Error };
-type Result_6 = variant { Ok : vec SurplusPost; Err : Error };
-type SurplusPost = record {
+type DoctorPayload = record { name : text; speciality : text };
+type Medication = record {
   id : nat64;
-  assigned : bool;
-  quantity_kg : nat32;
-  best_before_date : text;
-  donor_id : text;
-  food_type : FoodType;
-  handling_instructions : text;
+  patient_id : nat64;
+  dosage : text;
+  name : text;
+  created_at : nat64;
+  frequency : text;
 };
-type SurplusPostPayload = record {
-  quantity_kg : nat32;
-  best_before_date : text;
-  donor_id : text;
-  food_type : FoodType;
-  handling_instructions : text;
+type MedicationPayload = record {
+  patient_id : nat64;
+  dosage : text;
+  name : text;
+  frequency : text;
 };
-type SurplusRecord = record {
+type Message = variant {
+  Error : text;
+  InvalidPayload : text;
+  NotFound : text;
+  Success : text;
+};
+type Patient = record {
   id : nat64;
-  surplus_post_id : nat64;
-  driver_id : nat64;
-  rating : opt nat8;
-  delivered_at : nat64;
+  age : nat32;
+  name : text;
+  created_at : nat64;
+  gender : text;
 };
-type SurplusRecordPayload = record {
-  surplus_post_id : nat64;
-  driver_id : nat64;
+type PatientPayload = record { age : nat32; name : text; gender : text };
+type PatientRecord = record {
+  id : nat64;
+  patient_id : nat64;
+  treatment : text;
+  created_at : nat64;
+  diagnosis : text;
+  medications : vec text;
+  doctor_id : nat64;
 };
+type PatientRecordPayload = record {
+  patient_id : nat64;
+  treatment : text;
+  diagnosis : text;
+  medications : vec text;
+  doctor_id : nat64;
+};
+type Result = variant { Ok : Appointment; Err : Message };
+type Result_1 = variant { Ok : Doctor; Err : Message };
+type Result_10 = variant { Ok : vec Patient; Err : Message };
+type Result_2 = variant { Ok : Medication; Err : Message };
+type Result_3 = variant { Ok : Patient; Err : Message };
+type Result_4 = variant { Ok : PatientRecord; Err : Message };
+type Result_5 = variant { Ok; Err : Message };
+type Result_6 = variant { Ok : vec Appointment; Err : Message };
+type Result_7 = variant { Ok : vec Doctor; Err : Message };
+type Result_8 = variant { Ok : vec Medication; Err : Message };
+type Result_9 = variant { Ok : vec PatientRecord; Err : Message };
 service : {
-  create_assignment : (AssignmentPayload) -> (Result);
-  create_donor_profile : (DonorPayload) -> (Result_1);
-  create_driver_profile : (DriverPayload) -> (Result_2);
-  create_receiver_profile : (DriverPayload) -> (Result_2);
-  create_surplus_post : (SurplusPostPayload) -> (Result_3);
-  create_surplus_record : (SurplusRecordPayload) -> (Result_4);
-  get_all_drivers : () -> (Result_5) query;
-  get_all_surplus_posts : () -> (Result_6) query;
-  get_surplus_post_by_food_type : (FoodType) -> (Result_6) query;
+  create_appointment : (AppointmentPayload) -> (Result);
+  create_doctor : (DoctorPayload) -> (Result_1);
+  create_medication : (MedicationPayload) -> (Result_2);
+  create_patient : (PatientPayload) -> (Result_3);
+  create_patient_record : (PatientRecordPayload) -> (Result_4);
+  delete_appointment : (nat64) -> (Result_5);
+  delete_doctor : (nat64) -> (Result_5);
+  delete_medication : (nat64) -> (Result_5);
+  delete_patient : (nat64) -> (Result_5);
+  delete_patient_record : (nat64) -> (Result_5);
+  get_appointment_id : (nat64) -> (Result) query;
+  get_appointments : () -> (Result_6) query;
+  get_doctor_id : (nat64) -> (Result_1) query;
+  get_doctors : () -> (Result_7) query;
+  get_medication_by_id : (nat64) -> (Result_2) query;
+  get_medications : () -> (Result_8) query;
+  get_patient_by_id : (nat64) -> (Result_3) query;
+  get_patient_record_by_id : (nat64) -> (Result_4) query;
+  get_patient_records : () -> (Result_9) query;
+  get_patients : () -> (Result_10) query;
+  update_appointment : (nat64, nat64, nat64, nat64, nat32, text) -> (Result);
+  update_doctor : (nat64, text, text) -> (Result_1);
+  update_medication : (nat64, text, text, text, nat64) -> (Result_2);
+  update_patient : (nat64, text, nat32, text) -> (Result_3);
+  update_patient_record : (nat64, nat64, nat64, text, text, vec text) -> (
+      Result_4,
+    );
 }

@@ -1,36 +1,47 @@
-# Decentralized Surplus Food Management System
+# Health_Track Management System
 
-This project is a decentralized platform built on the Internet Computer for managing surplus food donations. It allows donors to post surplus food, receivers to claim food, and drivers to manage deliveries. The platform ensures robust access control and user management.
+This project is a decentralized platform built on the Internet Computer for managing healthcare services. It allows users to manage doctors, patients, appointments, patient records, and medications. The platform ensures robust access control and user management.
 
 ## Key Features
 
-1. **Donor Management**
-   - **Add Donor:** Allows users to create donor profiles.
-   - **Get All Donors:** Retrieve a list of all donor profiles.
+### Doctor Management
+- **Create Doctor**: Allows users to create doctor profiles.
+- **Get All Doctors**: Retrieve a list of all doctor profiles.
+- **Get Doctor by ID**: Retrieve a doctor's profile by their ID.
+- **Update Doctor**: Update a doctor's profile.
+- **Delete Doctor**: Delete a doctor's profile.
 
-2. **Receiver Management**
-   - **Add Receiver:** Allows users to create receiver profiles.
-   - **Get All Receivers:** Retrieve a list of all receiver profiles.
+### Patient Management
+- **Create Patient**: Allows users to create patient profiles.
+- **Get All Patients**: Retrieve a list of all patient profiles.
+- **Get Patient by ID**: Retrieve a patient's profile by their ID.
+- **Update Patient**: Update a patient's profile.
+- **Delete Patient**: Delete a patient's profile.
 
-3. **Driver Management**
-   - **Add Driver:** Allows users to create driver profiles.
-   - **Get All Drivers:** Retrieve a list of all driver profiles.
+### Appointment Management
+- **Create Appointment**: Allows users to create appointments.
+- **Get All Appointments**: Retrieve a list of all appointments.
+- **Get Appointment by ID**: Retrieve an appointment by its ID.
+- **Update Appointment**: Update an appointment's details.
+- **Delete Appointment**: Delete an appointment.
 
-4. **Surplus Post Management**
-   - **Add Surplus Post:** Allows donors to post details of surplus food.
-   - **Get All Surplus Posts:** Retrieve a list of all surplus food posts.
-   - **Get Surplus Post by Food Type:** Retrieve surplus food posts filtered by food type.
+### Patient Record Management
+- **Create Patient Record**: Allows users to create patient records.
+- **Get All Patient Records**: Retrieve a list of all patient records.
+- **Get Patient Record by ID**: Retrieve a patient record by its ID.
+- **Update Patient Record**: Update a patient record.
+- **Delete Patient Record**: Delete a patient record.
 
-5. **Assignment Management**
-   - **Create Assignment:** Assigns a surplus post to a receiver and a driver.
-   - **Get All Assignments:** Retrieve a list of all assignments.
+### Medication Management
+- **Create Medication**: Allows users to create medication profiles.
+- **Get All Medications**: Retrieve a list of all medications.
+- **Get Medication by ID**: Retrieve a medication by its ID.
+- **Update Medication**: Update a medication's details.
+- **Delete Medication**: Delete a medication.
 
-6. **Surplus Record Management**
-   - **Create Surplus Record:** Records the delivery of a surplus post by a driver.
-
-7. **Error Handling**
-   - **Not Found:** Returns an error if a requested item is not found.
-   - **Unauthorized Access:** Returns an error if a user tries to perform an action without necessary permissions.
+### Error Handling
+- **Not Found**: Returns an error if a requested item is not found.
+- **Unauthorized Access**: Returns an error if a user tries to perform an action without necessary permissions.
 
 ## Requirements
 * rustc 1.64 or higher
