@@ -9,7 +9,6 @@ use std::{borrow::Cow, cell::RefCell};
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type IdCell = Cell<u64, Memory>;
 
-// Define the Doctor struct
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Doctor {
     id: u64,
@@ -18,7 +17,6 @@ struct Doctor {
     created_at: u64,
 }
 
-// Define the Patient struct
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Patient {
     id: u64,
@@ -28,7 +26,6 @@ struct Patient {
     created_at: u64,
 }
 
-// Define the Appointment struct
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Appointment {
     id: u64,
@@ -41,7 +38,6 @@ struct Appointment {
     updated_at: Option<u64>,
 }
 
-// Define the PatientRecord struct
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct PatientRecord {
     id: u64,
@@ -53,7 +49,6 @@ struct PatientRecord {
     created_at: u64,
 }
 
-// Define the Medication struct
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Medication {
     id: u64,
@@ -64,7 +59,6 @@ struct Medication {
     created_at: u64,
 }
 
-// Implement Storable and BoundedStorable for the defined structs
 impl Storable for Doctor {
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
@@ -140,7 +134,6 @@ impl BoundedStorable for Medication {
     const IS_FIXED_SIZE: bool = false;
 }
 
-// Thread local storage for stable structures
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
         MemoryManager::init(DefaultMemoryImpl::default())
@@ -177,14 +170,12 @@ thread_local! {
     ));
 }
 
-// Doctor Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
 struct DoctorPayload {
     name: String,
     speciality: String,
 }
 
-// Patient Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
 struct PatientPayload {
     name: String,
@@ -192,7 +183,6 @@ struct PatientPayload {
     gender: String,
 }
 
-// Appointment Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
 struct AppointmentPayload {
     patient_id: u64,
@@ -202,7 +192,6 @@ struct AppointmentPayload {
     description: String,
 }
 
-// Patient Record Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
 struct PatientRecordPayload {
     patient_id: u64,
@@ -212,7 +201,6 @@ struct PatientRecordPayload {
     medications: Vec<String>,
 }
 
-// Medication Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
 struct MedicationPayload {
     name: String,
@@ -221,9 +209,22 @@ struct MedicationPayload {
     patient_id: u64,
 }
 
-// Create Doctor
+#[derive(candid::CandidType, Deserialize, Serialize)]
+enum Message {
+    Success(String),
+    Error(String),
+    NotFound(String),
+    InvalidPayload(String),
+}
+
 #[ic_cdk::update]
-fn create_doctor(payload: DoctorPayload) -> Result<Doctor, String> {
+fn create_doctor(payload: DoctorPayload) -> Result<Doctor, Message> {
+    if payload.name.is_empty() || payload.speciality.is_empty() {
+        return Err(Message::InvalidPayload(
+            "Ensure 'name' and 'speciality' are provided.".to_string(),
+        ));
+    }
+
     let id = ID_COUNTER.with(|counter| {
         let current_value = *counter.borrow().get();
         counter.borrow_mut().set(current_value + 1)
@@ -239,7 +240,6 @@ fn create_doctor(payload: DoctorPayload) -> Result<Doctor, String> {
     Ok(doctor)
 }
 
-// Get all Doctors
 #[ic_cdk::query]
 fn get_doctors() -> Vec<Doctor> {
     DOCTORS_STORAGE.with(|storage| {
@@ -251,41 +251,60 @@ fn get_doctors() -> Vec<Doctor> {
     })
 }
 
-// Get Doctor by ID
+// Function to get a doctor by ID
 #[ic_cdk::query]
 fn get_doctor_id(doctor_id: u64) -> Result<Doctor, Message> {
-    
+    DOCTORS_STORAGE.with(|storage| {
+        storage
+            .borrow()
+            .iter()
+            .find(|(_, doctor)| doctor.id == doctor_id)
+            .map(|(_, doctor)| doctor.clone())
+            .ok_or(Message::NotFound("Doctor not found".to_string()))
+    })
 }
 
-
-// Update Doctor
 #[ic_cdk::update]
-fn update_doctor(id: u64, name: String, speciality: String) -> Result<Doctor, String> {
+fn update_doctor(id: u64, name: String, speciality: String) -> Result<Doctor, Message> {
     DOCTORS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        if let Some(mut doctor) = storage.get_mut(&id) {
-            doctor.name = name;
-            doctor.speciality = speciality;
-            doctor.created_at = current_time();
-            Ok(doctor.clone())
-        } else {
-            Err("Doctor not found".to_string())
+        let id_entry = storage.iter().find(|(_, doctor)| doctor.id == id);
+        match id_entry {
+            Some((key, _)) => {
+                let updated_doctor = Doctor {
+                    id,
+                    name,
+                    speciality,
+                    created_at: current_time(),
+                };
+                storage.insert(key, updated_doctor.clone());
+                Ok(updated_doctor)
+            }
+            None => Err(Message::NotFound("Doctor not found".to_string())),
         }
     })
 }
 
-// Delete Doctor
 #[ic_cdk::update]
-fn delete_doctor(id: u64) -> Result<Doctor, String> {
+fn delete_doctor(id: u64) -> Result<(), Message> {
     DOCTORS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        storage.remove(&id).ok_or_else(|| "Doctor not found".to_string())
+        if storage.remove(&id).is_some() {
+            Ok(())
+        } else {
+            Err(Message::NotFound("Doctor not found".to_string()))
+        }
     })
 }
 
-// Create Patient
 #[ic_cdk::update]
-fn create_patient(payload: PatientPayload) -> Result<Patient, String> {
+fn create_patient(payload: PatientPayload) -> Result<Patient, Message> {
+    if payload.name.is_empty() || payload.gender.is_empty() {
+        return Err(Message::InvalidPayload(
+            "Ensure 'name' and 'gender' are provided.".to_string(),
+        ));
+    }
+
     let id = ID_COUNTER.with(|counter| {
         let current_value = *counter.borrow().get();
         counter.borrow_mut().set(current_value + 1)
@@ -302,7 +321,6 @@ fn create_patient(payload: PatientPayload) -> Result<Patient, String> {
     Ok(patient)
 }
 
-// Get all Patients
 #[ic_cdk::query]
 fn get_patients() -> Vec<Patient> {
     PATIENTS_STORAGE.with(|storage| {
@@ -314,47 +332,61 @@ fn get_patients() -> Vec<Patient> {
     })
 }
 
-// Get Patient by ID
 #[ic_cdk::query]
-fn get_patient(id: u64) -> Result<Patient, String> {
+fn get_patient_by_id(id: u64) -> Result<Patient, Message> {
     PATIENTS_STORAGE.with(|storage| {
         storage
             .borrow()
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| "Patient not found".to_string())
+            .iter()
+            .find(|(_, patient)| patient.id == id)
+            .map(|(_, patient)| patient.clone())
+            .ok_or(Message::NotFound("Patient not found".to_string()))
     })
 }
 
-// Update Patient
 #[ic_cdk::update]
-fn update_patient(id: u64, name: String, age: u32, gender: String) -> Result<Patient, String> {
+fn update_patient(id: u64, name: String, age: u32, gender: String) -> Result<Patient, Message> {
     PATIENTS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        if let Some(mut patient) = storage.get_mut(&id) {
-            patient.name = name;
-            patient.age = age;
-            patient.gender = gender;
-            patient.created_at = current_time();
-            Ok(patient.clone())
-        } else {
-            Err("Patient not found".to_string())
+        let id_entry = storage.iter().find(|(_, patient)| patient.id == id);
+        match id_entry {
+            Some((key, _)) => {
+                let updated_patient = Patient {
+                    id,
+                    name,
+                    age,
+                    gender,
+                    created_at: current_time(),
+                };
+                storage.insert(key, updated_patient.clone());
+                Ok(updated_patient)
+            }
+            None => Err(Message::NotFound("Patient not found".to_string())),
         }
     })
 }
 
-// Delete Patient
+
 #[ic_cdk::update]
-fn delete_patient(id: u64) -> Result<Patient, String> {
+fn delete_patient(id: u64) -> Result<(), Message> {
     PATIENTS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        storage.remove(&id).ok_or_else(|| "Patient not found".to_string())
+        if storage.remove(&id).is_some() {
+            Ok(())
+        } else {
+            Err(Message::NotFound("Patient not found".to_string()))
+        }
     })
 }
 
-// Create Appointment
 #[ic_cdk::update]
-fn create_appointment(payload: AppointmentPayload) -> Result<Appointment, String> {
+fn create_appointment(payload: AppointmentPayload) -> Result<Appointment, Message> {
+    if payload.description.is_empty() {
+        return Err(Message::InvalidPayload(
+            "Ensure 'description' is provided.".to_string(),
+        ));
+    }
+
     let id = ID_COUNTER.with(|counter| {
         let current_value = *counter.borrow().get();
         counter.borrow_mut().set(current_value + 1)
@@ -376,7 +408,6 @@ fn create_appointment(payload: AppointmentPayload) -> Result<Appointment, String
     Ok(appointment)
 }
 
-// Get all Appointments
 #[ic_cdk::query]
 fn get_appointments() -> Vec<Appointment> {
     APPOINTMENTS_STORAGE.with(|storage| {
@@ -388,19 +419,18 @@ fn get_appointments() -> Vec<Appointment> {
     })
 }
 
-// Get Appointment by ID
 #[ic_cdk::query]
-fn get_appointment(id: u64) -> Result<Appointment, String> {
+fn get_appointment_id(id: u64) -> Result<Appointment, Message> {
     APPOINTMENTS_STORAGE.with(|storage| {
         storage
             .borrow()
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| "Appointment not found".to_string())
+            .iter()
+            .find(|(_, appointment)| appointment.id == id)
+            .map(|(_, appointment)| appointment.clone())
+            .ok_or(Message::NotFound("Appointment not found".to_string()))
     })
 }
 
-// Update Appointment
 #[ic_cdk::update]
 fn update_appointment(
     id: u64,
@@ -409,35 +439,51 @@ fn update_appointment(
     date_time: u64,
     duration: u32,
     description: String,
-) -> Result<Appointment, String> {
+) -> Result<Appointment, Message> {
     APPOINTMENTS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        if let Some(mut appointment) = storage.get_mut(&id) {
-            appointment.patient_id = patient_id;
-            appointment.doctor_id = doctor_id;
-            appointment.date_time = date_time;
-            appointment.duration = duration;
-            appointment.description = description;
-            appointment.updated_at = Some(current_time());
-            Ok(appointment.clone())
-        } else {
-            Err("Appointment not found".to_string())
+        let id_entry = storage.iter().find(|(_, appointment)| appointment.id == id);
+        match id_entry {
+            Some((key, _)) => {
+                let updated_appointment = Appointment {
+                    id,
+                    patient_id,
+                    doctor_id,
+                    date_time,
+                    duration,
+                    description,
+                    created_at: current_time(),
+                    updated_at: Some(current_time()),
+                };
+                storage.insert(key, updated_appointment.clone());
+                Ok(updated_appointment)
+            }
+            None => Err(Message::NotFound("Appointment not found".to_string())),
         }
     })
 }
 
-// Delete Appointment
+
 #[ic_cdk::update]
-fn delete_appointment(id: u64) -> Result<Appointment, String> {
+fn delete_appointment(id: u64) -> Result<(), Message> {
     APPOINTMENTS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        storage.remove(&id).ok_or_else(|| "Appointment not found".to_string())
+        if storage.remove(&id).is_some() {
+            Ok(())
+        } else {
+            Err(Message::NotFound("Appointment not found".to_string()))
+        }
     })
 }
 
-// Create PatientRecord
 #[ic_cdk::update]
-fn create_patient_record(payload: PatientRecordPayload) -> Result<PatientRecord, String> {
+fn create_patient_record(payload: PatientRecordPayload) -> Result<PatientRecord, Message> {
+    if payload.diagnosis.is_empty() || payload.treatment.is_empty() {
+        return Err(Message::InvalidPayload(
+            "Ensure 'diagnosis' and 'treatment' are provided.".to_string(),
+        ));
+    }
+
     let id = ID_COUNTER.with(|counter| {
         let current_value = *counter.borrow().get();
         counter.borrow_mut().set(current_value + 1)
@@ -458,7 +504,6 @@ fn create_patient_record(payload: PatientRecordPayload) -> Result<PatientRecord,
     Ok(patient_record)
 }
 
-// Get all PatientRecords
 #[ic_cdk::query]
 fn get_patient_records() -> Vec<PatientRecord> {
     PATIENT_RECORDS_STORAGE.with(|storage| {
@@ -470,19 +515,18 @@ fn get_patient_records() -> Vec<PatientRecord> {
     })
 }
 
-// Get PatientRecord by ID
 #[ic_cdk::query]
-fn get_patient_record(id: u64) -> Result<PatientRecord, String> {
+fn get_patient_record(id: u64) -> Result<PatientRecord, Message> {
     PATIENT_RECORDS_STORAGE.with(|storage| {
         storage
             .borrow()
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| "Patient record not found".to_string())
+            .iter()
+            .find(|(_, patient_record)| patient_record.id == id)    
+            .map(|(_, patient_record)| patient_record.clone())
+            .ok_or(Message::NotFound("Patient record not found".to_string()))
     })
 }
 
-// Update PatientRecord
 #[ic_cdk::update]
 fn update_patient_record(
     id: u64,
@@ -491,34 +535,50 @@ fn update_patient_record(
     diagnosis: String,
     treatment: String,
     medications: Vec<String>,
-) -> Result<PatientRecord, String> {
+) -> Result<PatientRecord, Message> {
     PATIENT_RECORDS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        if let Some(mut patient_record) = storage.get_mut(&id) {
-            patient_record.patient_id = patient_id;
-            patient_record.doctor_id = doctor_id;
-            patient_record.diagnosis = diagnosis;
-            patient_record.treatment = treatment;
-            patient_record.medications = medications;
-            Ok(patient_record.clone())
-        } else {
-            Err("Patient record not found".to_string())
+        let id_entry = storage.iter().find(|(_, patient_record)| patient_record.id == id);
+        match id_entry {
+            Some((key, _)) => {
+                let updated_patient_record = PatientRecord {
+                    id,
+                    patient_id,
+                    doctor_id,
+                    diagnosis,
+                    treatment,
+                    medications,
+                    created_at: current_time(),
+                };
+                storage.insert(key, updated_patient_record.clone());
+                Ok(updated_patient_record)
+            }
+            None => Err(Message::NotFound("Patient record not found".to_string())),
         }
     })
 }
 
-// Delete PatientRecord
+
 #[ic_cdk::update]
-fn delete_patient_record(id: u64) -> Result<PatientRecord, String> {
+fn delete_patient_record(id: u64) -> Result<(), Message> {
     PATIENT_RECORDS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        storage.remove(&id).ok_or_else(|| "Patient record not found".to_string())
+        if storage.remove(&id).is_some() {
+            Ok(())
+        } else {
+            Err(Message::NotFound("Patient record not found".to_string()))
+        }
     })
 }
 
-// Create Medication
 #[ic_cdk::update]
-fn create_medication(payload: MedicationPayload) -> Result<Medication, String> {
+fn create_medication(payload: MedicationPayload) -> Result<Medication, Message> {
+    if payload.name.is_empty() || payload.dosage.is_empty() || payload.frequency.is_empty() {
+        return Err(Message::InvalidPayload(
+            "Ensure 'name', 'dosage', and 'frequency' are provided.".to_string(),
+        ));
+    }
+
     let id = ID_COUNTER.with(|counter| {
         let current_value = *counter.borrow().get();
         counter.borrow_mut().set(current_value + 1)
@@ -538,7 +598,6 @@ fn create_medication(payload: MedicationPayload) -> Result<Medication, String> {
     Ok(medication)
 }
 
-// Get all Medications
 #[ic_cdk::query]
 fn get_medications() -> Vec<Medication> {
     MEDICATIONS_STORAGE.with(|storage| {
@@ -550,19 +609,18 @@ fn get_medications() -> Vec<Medication> {
     })
 }
 
-// Get Medication by ID
 #[ic_cdk::query]
-fn get_medication(id: u64) -> Result<Medication, String> {
+fn get_medication_by_id(id: u64) -> Result<Medication, Message> {
     MEDICATIONS_STORAGE.with(|storage| {
         storage
             .borrow()
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| "Medication not found".to_string())
+            .iter()
+            .find(|(_, medication)| medication.id == id)
+            .map(|(_, medication)| medication.clone())
+            .ok_or(Message::NotFound("Medication not found".to_string()))
     })
 }
 
-// Update Medication
 #[ic_cdk::update]
 fn update_medication(
     id: u64,
@@ -570,27 +628,38 @@ fn update_medication(
     dosage: String,
     frequency: String,
     patient_id: u64,
-) -> Result<Medication, String> {
+) -> Result<Medication, Message> {
     MEDICATIONS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        if let Some(mut medication) = storage.get_mut(&id) {
-            medication.name = name;
-            medication.dosage = dosage;
-            medication.frequency = frequency;
-            medication.patient_id = patient_id;
-            Ok(medication.clone())
-        } else {
-            Err("Medication not found".to_string())
+        let id_entry = storage.iter().find(|(_, medication)| medication.id == id);
+        match id_entry {
+            Some((key, _)) => {
+                let updated_medication = Medication {
+                    id,
+                    name,
+                    dosage,
+                    frequency,
+                    patient_id,
+                    created_at: current_time(),
+                };
+                storage.insert(key, updated_medication.clone());
+                Ok(updated_medication)
+            }
+            None => Err(Message::NotFound("Medication not found".to_string())),
         }
     })
 }
 
-// Delete Medication
+
 #[ic_cdk::update]
-fn delete_medication(id: u64) -> Result<Medication, String> {
+fn delete_medication(id: u64) -> Result<(), Message> {
     MEDICATIONS_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
-        storage.remove(&id).ok_or_else(|| "Medication not found".to_string())
+        if storage.remove(&id).is_some() {
+            Ok(())
+        } else {
+            Err(Message::NotFound("Medication not found".to_string()))
+        }
     })
 }
 
@@ -598,12 +667,10 @@ fn current_time() -> u64 {
     time()
 }
 
-// Error types
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
     NotFound { msg: String },
     UnAuthorized { msg: String },
 }
 
-// need this to generate candid
 ic_cdk::export_candid!();
